@@ -1,0 +1,12 @@
+{
+  "name": "lathe",
+  "description": "Token-efficient MCP tools for Claude Code: fused search, batched edit, AST-aware read, and read-only shell. Collapses 3-5 vanilla tool calls down to 1.",
+  "version": "0.1.0",
+  "keywords": ["search", "edit", "read", "mcp", "token-efficient", "ripgrep"],
+  "mcpServers": {
+    "lathe": {
+      "command": "python",
+      "args": ["-m", "beaglelathe"]
+    }
+  }
+}
