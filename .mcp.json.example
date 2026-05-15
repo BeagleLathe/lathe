@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "lathe": {
+      "command": "python",
+      "args": ["-m", "beaglelathe"]
+    }
+  }
+}

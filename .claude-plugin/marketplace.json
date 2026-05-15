@@ -1,0 +1,15 @@
+{
+  "name": "beagle-marketplace",
+  "owner": { "name": "BeagleLathe" },
+  "metadata": {
+    "description": "BeagleLathe plugins for Claude Code."
+  },
+  "plugins": [
+    {
+      "name": "beagle",
+      "source": "./",
+      "description": "Token-efficient MCP tools for Claude Code: fused search, batched edit, AST-aware read, and read-only shell.",
+      "version": "0.1.0"
+    }
+  ]
+}
