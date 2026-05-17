@@ -5,8 +5,8 @@
   "keywords": ["search", "edit", "read", "mcp", "token-efficient", "ripgrep"],
   "mcpServers": {
     "lathe": {
-      "command": "python",
-      "args": ["-m", "beaglelathe"]
+      "command": "beaglelathe",
+      "args": ["serve"]
     }
   }
 }

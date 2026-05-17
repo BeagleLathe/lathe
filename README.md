@@ -30,25 +30,39 @@ Every session, BeagleLathe counts what it saved. Run `/lathe-savings` to see the
 
 **Prerequisites:** Python 3.10+ and the [Claude Code CLI](https://claude.com/code).
 
-```bash
-pip install beaglelathe
-beaglelathe login
-```
-
-`beaglelathe login` registers the plugin with Claude Code (MCP server, slash commands, agents, hooks) and then walks you through magic-link sign-in. The install step is idempotent — re-running is a no-op once the plugin is registered.
-
-If you'd rather install without signing in:
+### One-liner (recommended)
 
 ```bash
-beaglelathe install
+curl -LsSf https://beaglelathe.dev/install.sh | sh
 ```
+
+Picks the best installer available (uv → pipx → pip), installs `beaglelathe`, registers the plugin with Claude Code, and walks you through magic-link sign-in. Pass `--no-login` to skip the sign-in step: `curl -LsSf https://beaglelathe.dev/install.sh | sh -s -- --no-login`.
+
+### Manual install
+
+Pick one of these — each is one shell line + `beaglelathe login`:
+
+```bash
+# With uv (https://docs.astral.sh/uv) — fastest, isolated venv
+uv tool install beaglelathe && beaglelathe login
+
+# With pipx (https://pipx.pypa.io) — isolated venv
+pipx install beaglelathe && beaglelathe login
+
+# With pip directly (Python 3.10+) — fine on macOS; on Linux see note below
+pip install beaglelathe && beaglelathe login
+```
+
+`beaglelathe login` registers the plugin with Claude Code (MCP server, slash commands, agents, hooks) and then walks you through magic-link sign-in. The install step is idempotent — re-running is a no-op once the plugin is registered. If you'd rather install without signing in, use `beaglelathe install` instead.
+
+**Linux + PEP 668 (Debian/Ubuntu):** modern distros block `pip install` system-wide. Use `uv tool install` or `pipx install` instead — the one-liner above picks one automatically.
 
 ### Alternative: install from the GitHub marketplace
 
-For power users who'd rather skip the pip-driven install, the plugin is also published to the BeagleLathe Claude Code marketplace. Note that you still need `pip install beaglelathe` first, since the plugin's MCP server runs `python -m beaglelathe`:
+For power users, the plugin is also published to the BeagleLathe Claude Code marketplace. You still need the Python package installed (the MCP server runs the `beaglelathe` console script):
 
 ```bash
-pip install beaglelathe
+uv tool install beaglelathe   # or: pipx install / pip install
 claude plugin marketplace add BeagleLathe/lathe
 claude plugin install lathe@beaglelathe
 ```
@@ -65,7 +79,7 @@ Or inside a Claude Code session:
 To wire BeagleLathe into a single project's `.mcp.json` instead of installing the plugin globally:
 
 ```bash
-pip install beaglelathe
+uv tool install beaglelathe   # or: pipx install / pip install
 beaglelathe install --mcp-json
 ```
 

@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
@@ -109,12 +110,12 @@ def is_plugin_installed() -> bool:
     return bool(entries)
 
 
-def sync_plugin_tree(*, force: bool = False) -> Path:
+def sync_plugin_tree(*, force: bool = False) -> tuple[Path, bool]:
     """Copy the bundled plugin tree to `local_plugin_root()`.
 
-    Always re-syncs when `force=True`. Otherwise, re-syncs whenever the
-    destination is missing or its version stamp differs from the installed
-    package version.
+    Returns `(path, changed)`. `changed` is True when the tree was (re)written
+    on this call — either because it was missing, force-synced, or the version
+    stamp differed from the installed package version.
     """
     src = bundled_plugin_path()
     dst = local_plugin_root()
@@ -124,14 +125,41 @@ def sync_plugin_tree(*, force: bool = False) -> Path:
     current_version = stamp.read_text().strip() if stamp.exists() else None
 
     if not force and dst.exists() and current_version == target_version:
-        return dst
+        return dst, False
 
     if dst.exists():
         shutil.rmtree(dst)
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(src, dst)
+    _pin_plugin_json_to_current_python(dst)
     stamp.write_text(target_version)
-    return dst
+    return dst, True
+
+
+def _pin_plugin_json_to_current_python(plugin_dir: Path) -> None:
+    """Rewrite the local plugin.json so the MCP server command uses an absolute
+    path to the Python interpreter that has `beaglelathe` installed.
+
+    Why: the bundled plugin.json calls the `beaglelathe` console script, which
+    works when that script is on PATH (typical for system pip, pipx, and
+    activated venvs). For unactivated venvs and other unusual layouts, pinning
+    to `sys.executable` makes the MCP server start regardless of PATH.
+    """
+    plugin_json = plugin_dir / ".claude-plugin" / "plugin.json"
+    if not plugin_json.is_file():
+        return
+    try:
+        data = json.loads(plugin_json.read_text())
+    except json.JSONDecodeError:
+        return
+    servers = data.get("mcpServers")
+    if not isinstance(servers, dict) or "lathe" not in servers:
+        return
+    servers["lathe"] = {
+        "command": sys.executable,
+        "args": ["-m", "beaglelathe"],
+    }
+    plugin_json.write_text(json.dumps(data, indent=2) + "\n")
 
 
 def _package_version() -> str:
@@ -182,8 +210,14 @@ def install_plugin(*, force: bool = False, log=None) -> InstallResult:
         if log is not None:
             log(msg)
 
-    if not force and is_marketplace_registered() and is_plugin_installed():
-        plugin_path = local_plugin_root() if local_plugin_root().exists() else None
+    plugin_path, tree_changed = sync_plugin_tree(force=force)
+
+    if (
+        not force
+        and not tree_changed
+        and is_marketplace_registered()
+        and is_plugin_installed()
+    ):
         return InstallResult(
             ok=True,
             already_installed=True,
@@ -191,13 +225,11 @@ def install_plugin(*, force: bool = False, log=None) -> InstallResult:
             message=f"Plugin {PLUGIN_REF} already installed.",
         )
 
-    plugin_path = sync_plugin_tree(force=force)
-
     if force or not is_marketplace_registered():
         _log(f"Registering marketplace from {plugin_path} ...")
         _run_claude("plugin", "marketplace", "add", str(plugin_path))
 
-    if force or not is_plugin_installed():
+    if force or tree_changed or not is_plugin_installed():
         _log(f"Installing {PLUGIN_REF} ...")
         _run_claude("plugin", "install", PLUGIN_REF)
 

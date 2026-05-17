@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.4 — 2026-05-17
+
+### Fixed
+
+- **MCP server now starts under `pipx`, `uv tool install`, and unactivated venvs.** Previously the bundled plugin manifest invoked the MCP server as `python -m beaglelathe`, which assumed the package was importable from whichever `python` was on PATH. That assumption holds for system pip installs but fails when the package lives in an isolated venv (the default for `pipx` and `uv tool install`). Two changes:
+  - The bundled `.claude-plugin/plugin.json` now calls the `beaglelathe` console script directly (`beaglelathe serve`). Pipx, uv, and activated venvs all put this script on PATH.
+  - `beaglelathe install` rewrites the local copy of `plugin.json` at install time with the absolute path to `sys.executable`, so the MCP server starts regardless of PATH state. Same fix in the `beaglelathe install --mcp-json` writer.
+- **Plugin install now refreshes Claude's cache on upgrade.** When `beaglelathe install` runs after an upgrade (detected via the version stamp at `~/.beaglelathe/plugin/.version`), it re-invokes `claude plugin install lathe@beaglelathe` to pick up the updated plugin files, even when the plugin is already registered.
+
 ## 0.2.3 — 2026-05-15
 
 ### Changed

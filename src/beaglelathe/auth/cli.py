@@ -284,7 +284,7 @@ def _install_mcp_json(args: argparse.Namespace) -> int:
     target_dir = Path(args.project or ".").resolve()
     mcp_path = target_dir / ".mcp.json"
 
-    server_entry: dict = {"command": "python", "args": ["-m", "beaglelathe"]}
+    server_entry: dict = {"command": sys.executable, "args": ["-m", "beaglelathe"]}
 
     if mcp_path.exists():
         try:
