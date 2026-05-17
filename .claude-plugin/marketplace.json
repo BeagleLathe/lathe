@@ -8,8 +8,8 @@
     {
       "name": "lathe",
       "source": "./",
-      "description": "Token-efficient MCP tools for Claude Code: fused search, batched edit, AST-aware read, and read-only shell.",
-      "version": "0.1.0"
+      "description": "Token-efficient MCP tools for Claude Code: fused search, batched fuzzy edit, AST-aware read, read-only shell, structured tests, git, lint/typecheck, todo extraction, and commit-message drafting.",
+      "version": "0.2.5"
     }
   ]
 }

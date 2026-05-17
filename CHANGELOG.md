@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.5 — 2026-05-16
+
+### Fixed
+
+- **SessionStart hook now loads the real MCP tool schemas.** The bundled `scripts/session-start.sh` told the model to preload `mcp__plugin_beagle_beaglelathe__{search,read,edit,sh}` — a prefix left over from before the plugin/server were renamed to `lathe`. Claude Code actually registers the tools as `mcp__plugin_lathe_lathe__*`, so the first `ToolSearch` returned no matches and every session silently fell back to the built-in Read/Edit/Grep/Bash, also under-counting the local savings meter. Hook updated to the correct prefix; added `tests/test_session_start_hook.py` which parses `plugin.json`, derives the expected prefix, and asserts the hook matches — fails CI on the next rename that forgets to update both files.
+
 ## 0.2.4 — 2026-05-17
 
 ### Fixed

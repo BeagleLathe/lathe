@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "beaglelathe"
-version = "0.2.4"
+version = "0.2.5"
 description = "Token-efficient MCP server: fused search + batched fuzzy edit, structured test/git/lint/todos/commit tools."
 readme = "README.md"
 license = {text = "Apache-2.0"}

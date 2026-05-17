@@ -215,12 +215,13 @@ Matching cascade: exact → normalized (whitespace/smart-quote fold) → fuzzy (
 ### `read`
 
 ```
-path        File path. Required.
-line_range  [start, end], 1-indexed inclusive. Optional.
-full        Skip AST truncation. Default: false
+path    File path. Required.
+mode    "full" | "truncated" | "skeleton". Default: "truncated"
+symbol  With mode=truncated, keep this symbol's body in full. Optional.
+        Use "ClassName.method" for nested symbols.
 ```
 
-AST-aware truncation keeps top-level signatures and class skeletons, collapses function bodies ≥ 3 lines. `line_range` expands any body intersecting that range. Hard cap: 50,000 chars.
+AST-aware truncation keeps top-level signatures, types, imports, and class skeletons, and stubs function bodies. `mode=full` returns the file verbatim; `mode=skeleton` returns just declaration lines (cheapest fallback for unsupported languages or huge files). Pass `symbol` with `mode=truncated` to keep one symbol's body in full while stubbing the rest. Hard cap: 200,000 chars.
 
 ### `sh`
 
@@ -312,10 +313,10 @@ Returns `{type, scope, subject, message, source, files}`. Heuristics: test paths
 BeagleLathe ships vendored ripgrep binaries for all supported platforms. If you hit this on an unusual platform, install ripgrep manually (`brew install ripgrep` on macOS, `apt install ripgrep` on Linux) and restart Claude Code.
 
 **Tools not showing in `/mcp`**
-Check that `python -m beaglelathe` starts without errors in your terminal. Common causes: wrong Python in PATH, missing pip install, bad `.mcp.json` path.
+Check that `beaglelathe` is on PATH (`which beaglelathe`) and the plugin is registered (`claude plugin list`). If either is missing, re-run `beaglelathe install` (or the install one-liner from beaglelathe.dev) and restart Claude Code.
 
 **Auth failures / "session expired"**
-Run `beaglelathe login` to get a fresh token. Tokens expire after 30 days of inactivity.
+Run `beaglelathe login` to get a fresh token. Tokens have a 24-hour TTL — re-run `login` whenever the CLI reports "session expired."
 
 **Quota exceeded**
 Run `/lathe-upgrade` or `beaglelathe upgrade` to open Stripe checkout. Pro is unlimited.

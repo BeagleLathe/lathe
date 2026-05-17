@@ -110,7 +110,7 @@ async def call_tool(name: str, arguments: dict) -> tuple[list[TextContent], dict
         if creds is None:
             notice = (
                 "Welcome to BeagleLathe! Your tools are active and savings are being tracked "
-                "locally. Run /beaglelathe-login to connect your account and activate your "
+                "locally. Run /lathe-login to connect your account and activate your "
                 "free tier (200 tool calls/month included)."
             )
 
@@ -125,7 +125,7 @@ async def call_tool(name: str, arguments: dict) -> tuple[list[TextContent], dict
                 f"BeagleLathe has been offline for more than {hours:.0f} hours. "
                 "Run `beaglelathe login` (or restore your network) to reconnect."
             ),
-            "action": "Run /beaglelathe-login to sign in, or check your network and retry.",
+            "action": "Run /lathe-login to sign in, or check your network and retry.",
         }
         text = (
             f"BeagleLathe: offline too long\nNo successful backend contact in over "
@@ -142,12 +142,12 @@ async def call_tool(name: str, arguments: dict) -> tuple[list[TextContent], dict
         if _upgrade_url:
             payload["upgrade_url"] = _upgrade_url
         payload["action"] = (
-            "Run /beaglelathe-upgrade (or visit the URL above) to unlock unlimited calls."
+            "Run /lathe-upgrade (or visit the URL above) to unlock unlimited calls."
         )
         text = "BeagleLathe: quota exceeded\nFree-tier limit reached. Upgrade to continue."
         if _upgrade_url:
             text += f"\nUpgrade: {_upgrade_url}"
-        text += "\nRun /beaglelathe-upgrade to unlock unlimited calls."
+        text += "\nRun /lathe-upgrade to unlock unlimited calls."
         return [TextContent(type="text", text=text)], payload
 
     # Dispatch to the appropriate tool.

@@ -15,4 +15,4 @@ List every BeagleLathe slash command with a one-line description. Format as a pl
 /lathe-help     Usage tips, troubleshooting, and link to docs.
 ```
 
-Then add: "MCP tools active in this session: search, edit, read, sh. Run /mcp to confirm."
+Then add: "MCP tools active in this session: search, edit, read, sh, run_tests, git_status, git_diff, changed_files, lint_and_typecheck, extract_todos, commit_message. Run /mcp to confirm."
