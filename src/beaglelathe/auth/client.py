@@ -15,7 +15,7 @@ import httpx
 from .credentials import Credentials
 
 
-DEFAULT_API_URL = os.environ.get("BEAGLELATHE_API_URL", "https://beaglelathe-api.fly.dev")
+PROD_API_URL = "https://beaglelathe-api.fly.dev"
 DEFAULT_TIMEOUT_SECONDS = 30.0
 DEFAULT_POLL_INTERVAL_SECONDS = 1.0
 
@@ -25,8 +25,12 @@ class AuthError(RuntimeError):
 
 
 def default_base_url() -> str:
-    """Backend URL: BEAGLELATHE_API_URL env var, or the production Fly.io URL."""
-    return DEFAULT_API_URL.rstrip("/")
+    """Backend URL: BEAGLELATHE_API_URL env var, or the production Fly.io URL.
+
+    Read at call time, not at import, so callers (and tests) can override the
+    env var after the module is already loaded.
+    """
+    return os.environ.get("BEAGLELATHE_API_URL", PROD_API_URL).rstrip("/")
 
 
 def device_fingerprint() -> str:

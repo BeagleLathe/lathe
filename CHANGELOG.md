@@ -1,10 +1,22 @@
 # Changelog
 
+## 0.2.6 — 2026-05-17
+
+### Fixed
+
+- **`run_tests` now works under pipx, `uv tool install`, and unactivated venvs.** The pytest runner invoked the bare `pytest` binary, which is only on PATH when the venv is activated. Under pipx/uv/system-pip-without-venv-activation, the binary isn't reachable and the tool returned `{"error": "pytest not found"}` even when pytest was importable. Switched to `[sys.executable, "-m", "pytest", ...]` so the runner works in any environment where the Python invoking the MCP server can `import pytest`. Added a regression test that pins the bare-PATH case.
+
+### Internal
+
+- Dropped an unused `statuses` list in `commit_message._infer_type` (ruff F841).
+- Ruff cleanup pass across scripts, tests, and a handful of `src/` modules: removed unused imports and empty f-strings. The `httpx` availability probe in `usage_client.py` is preserved with an explicit `# noqa: F401`.
+
 ## 0.2.5 — 2026-05-16
 
 ### Fixed
 
 - **SessionStart hook now loads the real MCP tool schemas.** The bundled `scripts/session-start.sh` told the model to preload `mcp__plugin_beagle_beaglelathe__{search,read,edit,sh}` — a prefix left over from before the plugin/server were renamed to `lathe`. Claude Code actually registers the tools as `mcp__plugin_lathe_lathe__*`, so the first `ToolSearch` returned no matches and every session silently fell back to the built-in Read/Edit/Grep/Bash, also under-counting the local savings meter. Hook updated to the correct prefix; added `tests/test_session_start_hook.py` which parses `plugin.json`, derives the expected prefix, and asserts the hook matches — fails CI on the next rename that forgets to update both files.
+- **`BEAGLELATHE_API_URL` env var now overrides the default at call time, not import time.** `default_base_url()` previously captured `os.environ.get(...)` at module load, so any later override (programmatic or in tests) was ignored. Also corrected the stale `--api-url` help text on `beaglelathe login` that still advertised an `http://localhost:8000` fallback.
 
 ## 0.2.4 — 2026-05-17
 

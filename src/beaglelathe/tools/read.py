@@ -15,7 +15,6 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Optional
 
-from .. import ast as bh_ast
 from ..ast import language_for_path, parse, symbols, truncate
 
 INPUT_SCHEMA: dict[str, Any] = {

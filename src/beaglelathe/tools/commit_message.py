@@ -176,7 +176,6 @@ def _parse_name_status(text: str) -> list[dict]:
 
 def _infer_type(files: list[dict]) -> str:
     paths = [f["path"] for f in files]
-    statuses = [f["status"] for f in files]
 
     def all_match(predicate) -> bool:
         return all(predicate(p) for p in paths)

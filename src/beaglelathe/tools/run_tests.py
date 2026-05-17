@@ -12,6 +12,7 @@ import json
 import re
 import shlex
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -154,7 +155,7 @@ _PYTEST_TRACE_LOC_RE = re.compile(r"^(?P<file>[^\s:]+):(?P<line>\d+):\s")
 
 
 def _run_pytest(cwd: Path, path: str | None, pattern: str | None, max_failures: int) -> dict:
-    cmd = ["pytest", "--tb=short", "-v", "--no-header", "--color=no", "-p", "no:cacheprovider"]
+    cmd = [sys.executable, "-m", "pytest", "--tb=short", "-v", "--no-header", "--color=no", "-p", "no:cacheprovider"]
     if pattern:
         cmd.extend(["-k", pattern])
     if path:

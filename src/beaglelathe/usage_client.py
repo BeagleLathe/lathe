@@ -5,7 +5,7 @@ from __future__ import annotations
 from .auth.credentials import Credentials
 
 try:
-    import httpx
+    import httpx  # noqa: F401  # availability probe; real imports are local
     _HTTPX_AVAILABLE = True
 except ImportError:  # pragma: no cover
     _HTTPX_AVAILABLE = False

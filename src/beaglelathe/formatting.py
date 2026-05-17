@@ -12,7 +12,7 @@ indented JSON so the response is still complete.
 from __future__ import annotations
 
 import json
-from typing import Any, Callable
+from typing import Callable
 
 
 def format_result(name: str, args: dict | None, result: dict) -> str:

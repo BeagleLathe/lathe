@@ -9,7 +9,6 @@ from __future__ import annotations
 import argparse
 import sys
 import webbrowser
-from typing import Optional
 
 from .client import (
     AuthClient,
@@ -131,7 +130,7 @@ def status_command(args: argparse.Namespace) -> int:
         return 1
 
     try:
-        from ..usage_client import UsageClientError, get_status
+        from ..usage_client import get_status
         data = get_status(creds)
     except Exception as e:
         # Network down or token expired — show cached data with a warning.
@@ -229,7 +228,7 @@ def upgrade_command(args: argparse.Namespace) -> int:
         return 1
 
     try:
-        from ..usage_client import UsageClientError, post_checkout
+        from ..usage_client import post_checkout
         checkout_url = post_checkout(creds)
     except Exception as e:
         print(
@@ -321,7 +320,7 @@ def build_parser() -> argparse.ArgumentParser:
     login.add_argument(
         "--api-url",
         default=None,
-        help="Backend base URL (defaults to $BEAGLELATHE_API_URL or http://localhost:8000).",
+        help="Backend base URL (defaults to $BEAGLELATHE_API_URL or the production API).",
     )
     login.add_argument(
         "--no-browser",

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "beaglelathe"
-version = "0.2.5"
+version = "0.2.6"
 description = "Token-efficient MCP server: fused search + batched fuzzy edit, structured test/git/lint/todos/commit tools."
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -58,6 +58,33 @@ dev = ["pytest>=7.0"]
 
 [project.scripts]
 beaglelathe = "beaglelathe.__main__:cli"
+
+[tool.hatch.build.targets.sdist]
+# Keep the sdist tight: exclude dev/CI state, recorded sessions, build
+# artifacts, planning docs, and (importantly) any transient agent worktrees
+# under .claude/, which can balloon the sdist by ~10x.
+exclude = [
+  "/.claude",
+  "/.github",
+  "/.venv",
+  "/.pytest_cache",
+  "/.ruff_cache",
+  "/.coverage",
+  "/.coverage.*",
+  "/.mcp.json",
+  "/bench-logs",
+  "/dist",
+  "/__pycache__",
+  "/BUILD_PLAN_*.md",
+  "/MVP_*.md",
+  "/FEATURES.md",
+  "/scripts/benchmark.py",
+  "/scripts/smoke*.py",
+  "/scripts/sync*.sh",
+  "/scripts/verify_descriptions.py",
+  "/scripts/public-sync-exclude.list",
+  "/scripts/test-install*",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/beaglelathe"]
