@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.3 — 2026-05-15
+
+### Changed
+
+- **New canonical install flow.** `pip install beaglelathe` followed by `beaglelathe login` is now the recommended path — `login` registers the plugin with Claude Code (MCP server, slash commands, agents, hooks) before walking through the magic-link flow. Previously the docs pointed users at `claude plugin marketplace add BeagleLathe/lathe` first, but `claude plugin install` runs no install scripts, so the MCP server failed to start until the pip package was also installed. The marketplace path still works and is documented as a power-user alternative.
+- **`beaglelathe install` now installs the plugin** (idempotent: skips if `lathe@beaglelathe` is already registered). The previous behavior — writing a per-project `.mcp.json` — lives behind `beaglelathe install --mcp-json [PROJECT]`.
+- **Plugin files ship inside the wheel** (`.claude-plugin/`, `agents/`, `commands/`, `hooks/`, the public `scripts/`). At install time they're copied to `~/.beaglelathe/plugin/` so the marketplace reference stays valid across venv switches and Python upgrades.
+
 ## 0.2.2 — 2026-05-15
 
 ### Added

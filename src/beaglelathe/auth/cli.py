@@ -25,9 +25,19 @@ from .credentials import (
     load_credentials,
     save_credentials,
 )
+from .install import InstallError, install_plugin
 
 
 def login_command(args: argparse.Namespace) -> int:
+    if not getattr(args, "skip_install", False):
+        try:
+            result = install_plugin(log=lambda m: print(m, file=sys.stderr))
+            if not result.already_installed:
+                print(result.message, file=sys.stderr)
+        except InstallError as e:
+            print(f"plugin install failed: {e}", file=sys.stderr)
+            return 2
+
     base_url = (args.api_url or default_base_url()).rstrip("/")
     open_browser = not args.no_browser
     print(f"Logging in via {base_url} ...", file=sys.stderr)
@@ -239,7 +249,35 @@ def upgrade_command(args: argparse.Namespace) -> int:
 
 
 def install_command(args: argparse.Namespace) -> int:
-    """Write .mcp.json into the target project so Claude Code picks up BeagleLathe."""
+    """Install the BeagleLathe plugin into Claude Code (or write a per-project .mcp.json).
+
+    Default: register the bundled plugin tree with Claude Code so its MCP server,
+    slash commands, agents, and hooks are available globally. Idempotent.
+
+    `--mcp-json [PROJECT]`: alternate per-project mode. Writes `.mcp.json` into
+    the target directory so Claude picks up only the MCP server when invoked
+    inside that project. Useful for shared project configs that don't require
+    every collaborator to install the plugin.
+    """
+    if args.mcp_json:
+        return _install_mcp_json(args)
+    return _install_plugin(args)
+
+
+def _install_plugin(args: argparse.Namespace) -> int:
+    try:
+        result = install_plugin(
+            force=getattr(args, "force", False),
+            log=lambda m: print(m, file=sys.stderr),
+        )
+    except InstallError as e:
+        print(f"install failed: {e}", file=sys.stderr)
+        return 2
+    print(result.message, file=sys.stderr)
+    return 0
+
+
+def _install_mcp_json(args: argparse.Namespace) -> int:
     import json
     from pathlib import Path
 
@@ -302,6 +340,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=1.0,
         help="Seconds between /auth/poll calls (default 1.0).",
     )
+    login.add_argument(
+        "--skip-install",
+        action="store_true",
+        help="Skip the plugin install check; just run the login flow.",
+    )
     login.set_defaults(func=login_command)
 
     logout = sub.add_parser("logout", help="Clear stored credentials.")
@@ -332,13 +375,23 @@ def build_parser() -> argparse.ArgumentParser:
 
     install = sub.add_parser(
         "install",
-        help="Write .mcp.json to a project directory so Claude Code finds BeagleLathe.",
+        help="Install the BeagleLathe plugin into Claude Code (idempotent).",
     )
     install.add_argument(
         "project",
         nargs="?",
         default=None,
-        help="Project directory to configure (defaults to the current directory).",
+        help="With --mcp-json: project directory to configure (defaults to the current directory).",
+    )
+    install.add_argument(
+        "--mcp-json",
+        action="store_true",
+        help="Alternate mode: write per-project .mcp.json instead of installing the plugin globally.",
+    )
+    install.add_argument(
+        "--force",
+        action="store_true",
+        help="Force re-install even if the plugin is already registered.",
     )
     install.set_defaults(func=install_command)
 

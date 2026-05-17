@@ -4,9 +4,30 @@ build-backend = "hatchling.build"
 
 [project]
 name = "beaglelathe"
-version = "0.2.2"
+version = "0.2.3"
 description = "Token-efficient MCP server: fused search + batched fuzzy edit, structured test/git/lint/todos/commit tools."
+readme = "README.md"
 license = {text = "Apache-2.0"}
+authors = [
+  {name = "BeagleLathe", email = "hello@beaglelathe.dev"},
+]
+keywords = ["mcp", "claude", "claude-code", "search", "edit", "ripgrep", "token-efficient", "ast", "tree-sitter"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Utilities",
+]
 requires-python = ">=3.10"
 dependencies = [
   "mcp>=1.0.0",
@@ -26,6 +47,12 @@ dependencies = [
   "httpx>=0.27",
 ]
 
+[project.urls]
+Homepage = "https://beaglelathe.dev"
+Documentation = "https://beaglelathe.dev/docs.html"
+Source = "https://github.com/BeagleLathe/lathe"
+Issues = "https://github.com/BeagleLathe/lathe/issues"
+
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
 
@@ -37,6 +64,12 @@ packages = ["src/beaglelathe"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "bin" = "beaglelathe/_bin"
+".claude-plugin" = "beaglelathe/_plugin/.claude-plugin"
+"agents" = "beaglelathe/_plugin/agents"
+"commands" = "beaglelathe/_plugin/commands"
+"hooks" = "beaglelathe/_plugin/hooks"
+"scripts/statusline.sh" = "beaglelathe/_plugin/scripts/statusline.sh"
+"scripts/session-start.sh" = "beaglelathe/_plugin/scripts/session-start.sh"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

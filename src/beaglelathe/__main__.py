@@ -6,7 +6,8 @@ No args (or `serve`)  → run the MCP server over stdio.
 `savings`             → show local savings counter.
 `statusline`          → one-line summary for Claude Code's statusLine.
 `upgrade`             → open Stripe checkout to upgrade plan.
-`install`             → write .mcp.json into a project directory.
+`install`             → install the BeagleLathe plugin into Claude Code
+                       (or `--mcp-json [PROJECT]` for the per-project alternative).
 """
 
 from __future__ import annotations

@@ -28,26 +28,45 @@ Every session, BeagleLathe counts what it saved. Run `/lathe-savings` to see the
 
 ## Install
 
-**Prerequisites:** Python 3.10+.
-
-First install the Python package from PyPI:
+**Prerequisites:** Python 3.10+ and the [Claude Code CLI](https://claude.com/code).
 
 ```bash
 pip install beaglelathe
+beaglelathe login
 ```
 
-Then add the plugin from your shell:
+`beaglelathe login` registers the plugin with Claude Code (MCP server, slash commands, agents, hooks) and then walks you through magic-link sign-in. The install step is idempotent — re-running is a no-op once the plugin is registered.
+
+If you'd rather install without signing in:
 
 ```bash
+beaglelathe install
+```
+
+### Alternative: install from the GitHub marketplace
+
+For power users who'd rather skip the pip-driven install, the plugin is also published to the BeagleLathe Claude Code marketplace. Note that you still need `pip install beaglelathe` first, since the plugin's MCP server runs `python -m beaglelathe`:
+
+```bash
+pip install beaglelathe
 claude plugin marketplace add BeagleLathe/lathe
 claude plugin install lathe@beaglelathe
 ```
 
-Or, if you're already inside a Claude Code session, use the slash-command equivalents:
+Or inside a Claude Code session:
 
 ```
 /plugin marketplace add BeagleLathe/lathe
 /plugin install lathe@beaglelathe
+```
+
+### Per-project (no global install)
+
+To wire BeagleLathe into a single project's `.mcp.json` instead of installing the plugin globally:
+
+```bash
+pip install beaglelathe
+beaglelathe install --mcp-json
 ```
 
 ---
@@ -93,7 +112,8 @@ account:    you@example.com
 ## CLI reference
 
 ```
-beaglelathe login        Sign in via magic link
+beaglelathe install      Register the plugin with Claude Code (idempotent)
+beaglelathe login        Auto-install if needed, then sign in via magic link
 beaglelathe logout       Clear stored credentials
 beaglelathe whoami       Print signed-in user
 beaglelathe status       Show plan and remaining calls
