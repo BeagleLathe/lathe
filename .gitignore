@@ -219,5 +219,13 @@ __marimo__/
 
 # beaglelathe
 bench-logs/
+bench-logs-*/
 .mcp.json
 .claude/settings.local.json
+.claude/worktrees/
+
+# bench stdout dumps + status logs at repo root
+/master-baseline-*.txt
+/master-*.txt
+/l1-*.txt
+/run_status*.log

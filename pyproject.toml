@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "beaglelathe"
-version = "0.2.6"
+version = "0.3.1"
 description = "Token-efficient MCP server: fused search + batched fuzzy edit, structured test/git/lint/todos/commit tools."
 readme = "README.md"
 license = {text = "Apache-2.0"}
@@ -73,6 +73,7 @@ exclude = [
   "/.coverage.*",
   "/.mcp.json",
   "/bench-logs",
+  "/bench-fixtures",
   "/dist",
   "/__pycache__",
   "/BUILD_PLAN_*.md",
@@ -100,3 +101,12 @@ packages = ["src/beaglelathe"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+# Agent worktrees are ephemeral copies of the repo — they shouldn't gate lint.
+extend-exclude = [".claude/worktrees"]
+
+[tool.ruff.lint.per-file-ignores]
+# AST/tree-sitter fixtures are intentionally minimal source samples — their
+# "unused" imports are the test content (parsed by test_ast_engine.py et al).
+"tests/fixtures/**/*.py" = ["F401"]

@@ -1,0 +1,1 @@
+Find the integer value of the `MAX_RETRIES` module-level constant defined in src/limits.py. Write it as a single line — just the integer, nothing else — to a new file at the repo root called `answer.txt`. Do not modify src/limits.py. When done, reply with a single line: DONE.

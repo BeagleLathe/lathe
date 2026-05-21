@@ -1,0 +1,1 @@
+Rename every occurrence of the symbol `handleAuth` to `handleLogin` in every file under src/. Apply the change directly to the files. Do not ask for confirmation. When done, reply with a single line: DONE.

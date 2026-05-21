@@ -36,32 +36,73 @@ INPUT_SCHEMA: dict[str, Any] = {
         "validate": {
             "type": "boolean",
             "default": True,
-            "description": "After writing, parse each touched file with the appropriate validator and report `validation: ok | skipped | syntax_error` per result. Warn-only — syntax errors do not revert the write.",
+            "description": "Syntax-check after write (warn-only).",
+        },
+        "include_diffs": {
+            "type": "boolean",
+            "default": False,
+            "description": "Include unified diff per result.",
         },
     },
     "required": ["edits"],
 }
 
 DESCRIPTION = (
-    "Apply an array of edits across one or more files in a single atomic call. Prefer this "
-    "over the built-in Edit tool for any code modification, including single-edit cases — a "
-    "one-item `edits` array has no overhead, gets the same atomic guarantee, and benefits "
-    "from fuzzy matching that tolerates whitespace, indentation, and quote/dash drift the "
-    "built-in Edit would reject. For multi-file changes the win is larger: replaces a "
-    "sequence of separate Edit invocations with one batched operation that lands together or "
-    "not at all. Use for single-file fixes, refactors, multi-file renames, or any set of "
-    "related changes (e.g., a function rename plus its call sites) that must succeed as a "
-    "unit. Each edit specifies `path`, `old_string`, `new_string`, and optional `replace_all`; "
-    "matching is fuzzy when needed, tolerating whitespace drift, indentation differences, and "
-    "curly-vs-straight quote/dash/ellipsis variations between the supplied `old_string` and "
-    "the file. Atomic guarantee: every edit is dry-run first against current file state, and "
-    "if any one fails to match or is ambiguous, no file is written — the workspace is never "
-    "left half-modified."
+    "Apply one or more edits to one or more files in a single atomic call. Prefer over the "
+    "built-in Edit even for single edits — fuzzy matching tolerates whitespace, indentation, "
+    "and smart-quote/dash drift that built-in Edit rejects, and multi-file batches land "
+    "together or not at all (dry-run first; any failure aborts all writes)."
 )
 
 
 def _is_binary(b: bytes) -> bool:
     return b"\x00" in b[:8192]
+
+
+_SNIPPET_CONTEXT = 3
+_SNIPPET_FILE_CAP = 20
+_SNIPPET_TOTAL_CAP = 100
+
+
+def _snippet_for_edit(old_content: str, new_content: str) -> dict | None:
+    """Build a post-edit snippet describing the changed region of `new_content`.
+
+    Returns ``{"start_line": int, "lines": [...]}``, optionally with
+    ``truncated_to_lines: True`` when the changed window exceeds the per-file
+    cap. Returns None when nothing changed.
+    """
+    old_lines = old_content.splitlines()
+    new_lines = new_content.splitlines()
+    matcher = difflib.SequenceMatcher(a=old_lines, b=new_lines, autojunk=False)
+    new_start: int | None = None
+    new_end: int | None = None
+    for tag, _i1, _i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+        if new_start is None:
+            new_start = j1
+        new_end = j2
+    if new_start is None or new_end is None:
+        return None
+    if new_end == new_start:
+        # Pure deletion — anchor the snippet on the line where the deletion
+        # happened so the agent sees the surrounding context.
+        new_end = new_start
+    window_start = max(0, new_start - _SNIPPET_CONTEXT)
+    window_end = min(len(new_lines), new_end + _SNIPPET_CONTEXT)
+    window = new_lines[window_start:window_end]
+    truncated = False
+    if len(window) > _SNIPPET_FILE_CAP:
+        half = _SNIPPET_FILE_CAP // 2
+        window = window[:half] + window[-half:]
+        truncated = True
+    out: dict[str, Any] = {
+        "start_line": window_start + 1,
+        "lines": window,
+    }
+    if truncated:
+        out["truncated_to_lines"] = True
+    return out
 
 
 def _plan_one(
@@ -117,7 +158,12 @@ def _plan_one(
     return content[:fstart] + new + content[fend:], "fuzzy", fscore, None
 
 
-def apply_edits(edits: list[dict], cwd: Path, validate: bool = True) -> dict:
+def apply_edits(
+    edits: list[dict],
+    cwd: Path,
+    validate: bool = True,
+    include_diffs: bool = False,
+) -> dict:
     cwd = cwd.resolve()
     if not edits:
         return {"applied": 0, "failed": 0, "results": [], "error": "no edits provided"}
@@ -181,15 +227,18 @@ def apply_edits(edits: list[dict], cwd: Path, validate: bool = True) -> dict:
             file_state[key] = new_content
 
             rel = str(p_resolved.relative_to(cwd))
-            diff = "".join(
-                difflib.unified_diff(
-                    content.splitlines(keepends=True),
-                    new_content.splitlines(keepends=True),
-                    fromfile=rel,
-                    tofile=rel,
-                    n=2,
+            diff = ""
+            if include_diffs:
+                diff = "".join(
+                    difflib.unified_diff(
+                        content.splitlines(keepends=True),
+                        new_content.splitlines(keepends=True),
+                        fromfile=rel,
+                        tofile=rel,
+                        n=2,
+                    )
                 )
-            )
+            snippet = _snippet_for_edit(content, new_content)
             plans.append(
                 {
                     "key": key,
@@ -197,6 +246,7 @@ def apply_edits(edits: list[dict], cwd: Path, validate: bool = True) -> dict:
                     "match_type": match_type,
                     "fuzzy_score": fscore,
                     "diff": diff,
+                    "snippet": snippet,
                 }
             )
         except Exception as e:  # pragma: no cover - defensive
@@ -253,16 +303,21 @@ def apply_edits(edits: list[dict], cwd: Path, validate: bool = True) -> dict:
         os.replace(tmp.name, str(target))
         written.append(target)
 
+    snippets_truncated = _enforce_total_snippet_cap(plans)
+
     out_results = []
     for plan in plans:
         r: dict[str, Any] = {
             "path": plan["rel"],
             "status": "applied",
             "match_type": plan["match_type"],
-            "diff": plan["diff"],
         }
+        if include_diffs:
+            r["diff"] = plan["diff"]
         if plan["fuzzy_score"] is not None:
             r["fuzzy_score"] = plan["fuzzy_score"]
+        if plan.get("snippet") is not None:
+            r["snippet"] = plan["snippet"]
         if validate:
             target = Path(plan["key"])
             status, detail = validators.validate(target, file_state[plan["key"]])
@@ -271,4 +326,35 @@ def apply_edits(edits: list[dict], cwd: Path, validate: bool = True) -> dict:
                 r["validation_detail"] = detail
         out_results.append(r)
 
-    return {"applied": len(plans), "failed": 0, "results": out_results}
+    response: dict[str, Any] = {"applied": len(plans), "failed": 0, "results": out_results}
+    if snippets_truncated:
+        response["snippets_truncated"] = True
+    return response
+
+
+def _enforce_total_snippet_cap(plans: list[dict]) -> bool:
+    """Drop snippets from the largest plans until total snippet lines ≤ cap.
+
+    Returns True if any snippet was dropped.
+    """
+    def _lines(plan: dict) -> int:
+        s = plan.get("snippet")
+        return len(s["lines"]) if s else 0
+
+    total = sum(_lines(p) for p in plans)
+    if total <= _SNIPPET_TOTAL_CAP:
+        return False
+    # Drop largest snippets first until under cap.
+    order = sorted(
+        (i for i, p in enumerate(plans) if p.get("snippet")),
+        key=lambda i: _lines(plans[i]),
+        reverse=True,
+    )
+    dropped = False
+    for i in order:
+        if total <= _SNIPPET_TOTAL_CAP:
+            break
+        total -= _lines(plans[i])
+        plans[i]["snippet"] = None
+        dropped = True
+    return dropped

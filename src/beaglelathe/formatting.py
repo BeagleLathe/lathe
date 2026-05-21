@@ -1,9 +1,14 @@
 """Render tool result dicts as human-readable text for the Claude Code UI.
 
 Each `_render_*` function takes the original `args` and the result dict and
-returns a plain-text block intended for the MCP text response. The structured
-dict is still returned alongside via `structuredContent`, so programmatic
-consumers (smoke scripts, future tooling) are unaffected by the text format.
+returns a plain-text block intended for the MCP text response.
+
+The structured dict is NOT emitted on the wire by default — Claude Code
+renders `structuredContent` in preference to the text block, which would
+shadow the formatted output with a raw JSON envelope. Programmatic
+consumers (smoke scripts, future tooling) can opt back in by setting
+`BEAGLELATHE_EXPOSE_STRUCTURED=1` in the server's environment; see
+`server._mcp_call_tool`.
 
 If a renderer raises or no renderer exists for a tool, we fall back to
 indented JSON so the response is still complete.
@@ -24,6 +29,14 @@ def format_result(name: str, args: dict | None, result: dict) -> str:
         notice = result.get("_notice")
         payload = {k: v for k, v in result.items() if k != "_notice"}
 
+    # Dedup stub — emitted by the per-session output cache when the payload
+    # matches a recent call. Same shape for any tool that's covered.
+    if "unchanged_since_turn" in payload:
+        body = _render_dedup_stub(name, payload)
+        if notice:
+            return f"{notice}\n\n{body}"
+        return body
+
     renderer = _RENDERERS.get(name)
     try:
         body = renderer(args, payload) if renderer else _fallback(payload)
@@ -33,6 +46,14 @@ def format_result(name: str, args: dict | None, result: dict) -> str:
     if notice:
         return f"{notice}\n\n{body}"
     return body
+
+
+def _render_dedup_stub(name: str, r: dict) -> str:
+    return (
+        f"{name}: unchanged since turn {r.get('unchanged_since_turn', '?')} "
+        f"(current turn {r.get('current_turn', '?')}). "
+        f"Pass force=true to re-emit."
+    )
 
 
 def _fallback(result: dict) -> str:
@@ -120,26 +141,28 @@ def _render_search(args: dict, r: dict) -> str:
     head = " ".join(head_bits)
     if "error" in r:
         return _error_block(r, header=head)
-    matches = r.get("total_matches", 0)
+    total = r.get("total_matches", 0)
     files_matched = r.get("files_matched", 0)
     files_searched = r.get("files_searched", 0)
-    out = [head, f"{matches} match(es) in {files_matched}/{files_searched} file(s)"]
+    out = [head, f"{total} match(es) in {files_matched}/{files_searched} file(s)"]
     if r.get("truncated"):
         out.append("(results truncated)")
-    for f in r.get("results") or []:
-        out.append("")
-        out.append(f.get("path", ""))
-        for m in f.get("matches") or []:
-            ln = m.get("line", 0)
-            text = m.get("text", "")
-            ctx_before = m.get("context_before") or []
-            for i, ctx in enumerate(ctx_before):
-                out.append(f"  {ln - len(ctx_before) + i}: {ctx}")
-            count = m.get("count", 1)
-            mult = f"  (x{count})" if count > 1 else ""
-            out.append(f"  {ln}: {text}{mult}")
-            for i, ctx in enumerate(m.get("context_after") or []):
-                out.append(f"  {ln + 1 + i}: {ctx}")
+    last_path: str | None = None
+    for m in r.get("matches") or []:
+        path = m.get("path", "")
+        ln = m.get("line", 0)
+        text = m.get("text", "")
+        if path != last_path:
+            out.append("")
+            out.append(path)
+            last_path = path
+        for i, ctx in enumerate(m.get("before") or []):
+            out.append(f"  {ln - len(m['before']) + i}: {ctx}")
+        count = m.get("count", 1)
+        mult = f"  (x{count})" if count > 1 else ""
+        out.append(f"  {ln}: {text}{mult}")
+        for i, ctx in enumerate(m.get("after") or []):
+            out.append(f"  {ln + 1 + i}: {ctx}")
     return "\n".join(out)
 
 
@@ -421,11 +444,31 @@ def _render_commit_message(args: dict, r: dict) -> str:
     return "\n".join(out)
 
 
+def _render_edit_glob(args: dict, r: dict) -> str:
+    if "error" in r and not r.get("results"):
+        return _error_block(r, header="edit_glob")
+    files_matched = r.get("files_matched", 0)
+    files_changed = r.get("files_changed", 0)
+    total_subs = r.get("total_subs", 0)
+    out = [
+        f"edit_glob: {files_changed}/{files_matched} files changed, "
+        f"{total_subs} substitutions"
+    ]
+    if r.get("capped"):
+        out.append("  (max_files cap hit — some matched files were skipped)")
+    for item in r.get("results") or []:
+        if item.get("subs", 0) == 0:
+            continue
+        out.append(f"  {item['path']}: {item['subs']} subs")
+    return "\n".join(out)
+
+
 _RENDERERS: dict[str, Callable[[dict, dict], str]] = {
     "sh": _render_sh,
     "read": _render_read,
     "search": _render_search,
     "edit": _render_edit,
+    "edit_glob": _render_edit_glob,
     "run_tests": _render_run_tests,
     "git_status": _render_git_status,
     "git_diff": _render_git_diff,

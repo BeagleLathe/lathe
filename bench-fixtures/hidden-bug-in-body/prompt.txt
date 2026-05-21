@@ -1,0 +1,1 @@
+There's a bug in `login()` in src/auth.py. The function is supposed to return True ONLY when user="admin" AND password="secret"; for any other combination it should return False. Currently a non-admin user with the right password still gets True. Find and fix the bug. Do not change the function signature. When done, reply with a single line: DONE.

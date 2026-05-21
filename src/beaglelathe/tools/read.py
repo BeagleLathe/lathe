@@ -1,7 +1,9 @@
-"""`read` tool: AST-aware structural read with three modes.
+"""`read` tool: AST-aware structural read with four modes.
 
 mode=full       — file verbatim (matches vanilla Read).
 mode=truncated  — function/method bodies stubbed, signatures kept. Default.
+mode=structure  — declarations + exports only. Drops module-level statements
+                  and decorators on top of body stubbing.
 mode=skeleton   — regex-picked declaration lines only. Cheapest fallback for
                   unsupported languages and giant files.
 
@@ -15,7 +17,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Optional
 
-from ..ast import language_for_path, parse, symbols, truncate
+from ..ast import language_for_path, parse, structure, symbols, truncate
 
 INPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -23,32 +25,24 @@ INPUT_SCHEMA: dict[str, Any] = {
         "path": {"type": "string"},
         "mode": {
             "type": "string",
-            "enum": ["full", "truncated", "skeleton"],
+            "enum": ["full", "truncated", "structure", "skeleton"],
             "default": "truncated",
-            "description": "full: verbatim. truncated: function bodies stubbed via tree-sitter (default). skeleton: regex-picked declaration lines only.",
+            "description": "full=verbatim; truncated=bodies stubbed; structure=decls only; skeleton=regex.",
         },
         "symbol": {
             "type": "string",
-            "description": "If set with mode=truncated, keep this symbol's body in full. Use 'ClassName.method' for nested symbols.",
+            "description": "Keep this symbol verbatim (Class.method for nested).",
         },
+        "force": {"type": "boolean", "default": False, "description": "Bypass output dedup."},
     },
     "required": ["path"],
 }
 
 DESCRIPTION = (
-    "Read a source file with substantial token savings by stubbing function and method "
-    "bodies while keeping every signature, type, import, and module-level declaration "
-    "intact — the structural information you need to navigate or plan changes, without the "
-    "implementation bytes you usually don't. Prefer this over the built-in Read tool for any "
-    "source file over ~300 lines, or whenever you only need to understand a file's structure "
-    "before deciding what to modify; the truncated output is almost always sufficient and the "
-    "context savings compound across a session. mode=truncated (default) is AST-aware via "
-    "tree-sitter. mode=full returns the file verbatim — use when you genuinely need every "
-    "line (small files, exact diff context, line-precise edits). mode=skeleton returns just "
-    "declaration lines via regex — cheapest fallback for unsupported languages or files "
-    ">10k lines. Pass symbol='ClassName.method' with mode=truncated to keep one symbol's "
-    "body in full while stubbing the rest — ideal when zeroing in on a specific function in "
-    "a large file."
+    "Read a source file with token-saving structural truncation (function bodies stubbed, "
+    "signatures kept). Prefer over built-in Read for any source file over ~300 lines, or "
+    "when you only need a file's structure before deciding what to change. Use mode=full for "
+    "small files or line-precise edits."
 )
 
 MAX_OUTPUT_CHARS = 200_000
@@ -142,8 +136,8 @@ def run_read(args: dict, cwd: Path) -> dict:
     if not path_str:
         return {"error": "`path` is required"}
     mode = (args.get("mode") or "truncated").lower()
-    if mode not in ("full", "truncated", "skeleton"):
-        return {"error": f"mode must be one of full|truncated|skeleton; got {mode!r}"}
+    if mode not in ("full", "truncated", "structure", "skeleton"):
+        return {"error": f"mode must be one of full|truncated|structure|skeleton; got {mode!r}"}
     keep_symbol = args.get("symbol") or None
 
     p_resolved, err = _resolve_path(path_str, cwd)
@@ -191,6 +185,35 @@ def run_read(args: dict, cwd: Path) -> dict:
             "path": rel,
             "language": language,
             "mode": "skeleton",
+            "lines": total_lines,
+            "truncated_to_lines": _line_count(out),
+            "content": out,
+            "size_capped": capped,
+            "symbols": _symbols_payload(raw, language),
+        }
+
+    if mode == "structure":
+        try:
+            structure_bytes = structure(raw, language)
+        except Exception as e:  # noqa: BLE001 — graceful fallback
+            out, capped = _hard_cap(content)
+            return {
+                "path": rel,
+                "language": language,
+                "mode": "full",
+                "lines": total_lines,
+                "truncated_to_lines": _line_count(out),
+                "content": out,
+                "size_capped": capped,
+                "symbols": _symbols_payload(raw, language),
+                "note": f"AST structure failed, returning verbatim: {e}",
+            }
+        rendered = structure_bytes.decode("utf-8", errors="replace")
+        out, capped = _hard_cap(rendered)
+        return {
+            "path": rel,
+            "language": language,
+            "mode": "structure",
             "lines": total_lines,
             "truncated_to_lines": _line_count(out),
             "content": out,

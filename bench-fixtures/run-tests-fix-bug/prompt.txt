@@ -1,0 +1,5 @@
+There are unit tests in this project at `test_calc.py`. Run them. One test will fail because of a bug in `src/calc.py`. Identify the bug, fix it, and confirm all tests pass.
+
+You can run the tests however you prefer (e.g. `python -m unittest test_calc` from the repo root). Fix the bug in `src/calc.py` only; do not modify the test file.
+
+When all tests pass, reply with a single line: DONE.

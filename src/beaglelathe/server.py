@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import os
 import threading
 from pathlib import Path
 
@@ -11,59 +13,32 @@ from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
 from .auth.credentials import CredentialsError, load_credentials, save_credentials
+from .dedup import DedupCache
 from .formatting import format_result
 from .savings import offline_grace_hours, offline_too_long, record_call
-from .tools.edit import (
-    DESCRIPTION as EDIT_DESC,
-    INPUT_SCHEMA as EDIT_SCHEMA,
-    apply_edits,
+from .tools.edit import apply_edits
+from .tools.edit_glob import run_edit_glob
+from .tools.lathe_meta import (
+    DESCRIPTION as LATHE_DESC,
+    INPUT_SCHEMA as LATHE_SCHEMA,
+    run_lathe,
 )
-from .tools.read import (
-    DESCRIPTION as READ_DESC,
-    INPUT_SCHEMA as READ_SCHEMA,
-    run_read,
-)
-from .tools.search import (
-    DESCRIPTION as SEARCH_DESC,
-    INPUT_SCHEMA as SEARCH_SCHEMA,
-    run_search,
-)
-from .tools.sh import (
-    DESCRIPTION as SH_DESC,
-    INPUT_SCHEMA as SH_SCHEMA,
-    run_sh,
-)
-from .tools.run_tests import (
-    DESCRIPTION as RUN_TESTS_DESC,
-    INPUT_SCHEMA as RUN_TESTS_SCHEMA,
-    run_tests,
-)
+from .tools.read import run_read
+from .tools.search import run_search
+# l3: only search/edit/edit_glob/read are advertised to the model. The
+# dispatch handlers for the other tools remain importable so call_tool can
+# still route to them if a future revert re-exposes them (or if the user
+# calls them by name directly via a custom MCP client).
+from .tools.sh import run_sh
+from .tools.run_tests import run_tests
 from .tools.git_ops import (
-    GIT_STATUS_DESC,
-    GIT_STATUS_SCHEMA,
-    GIT_DIFF_DESC,
-    GIT_DIFF_SCHEMA,
-    CHANGED_FILES_DESC,
-    CHANGED_FILES_SCHEMA,
     run_git_status,
     run_git_diff,
     run_changed_files,
 )
-from .tools.lint_and_typecheck import (
-    DESCRIPTION as LINT_DESC,
-    INPUT_SCHEMA as LINT_SCHEMA,
-    run_lint_and_typecheck,
-)
-from .tools.extract_todos import (
-    DESCRIPTION as TODOS_DESC,
-    INPUT_SCHEMA as TODOS_SCHEMA,
-    run_extract_todos,
-)
-from .tools.commit_message import (
-    DESCRIPTION as COMMIT_MSG_DESC,
-    INPUT_SCHEMA as COMMIT_MSG_SCHEMA,
-    run_commit_message,
-)
+from .tools.lint_and_typecheck import run_lint_and_typecheck
+from .tools.extract_todos import run_extract_todos
+from .tools.commit_message import run_commit_message
 
 app: Server = Server("beaglelathe")
 
@@ -71,33 +46,53 @@ app: Server = Server("beaglelathe")
 _welcomed: bool = False
 _quota_exceeded: bool = False
 _upgrade_url: str | None = None
+_dedup_cache: DedupCache = DedupCache(window=10)
+_DEDUP_TOOLS: frozenset[str] = frozenset({"search", "read"})
+
+# l4 experiment: BL advertises ONE MCP tool (`lathe`) with an `action`
+# discriminator that dispatches to search/edit/edit_glob/read. The other 8
+# tools (sh, run_tests, git_status, git_diff, changed_files,
+# lint_and_typecheck, extract_todos, commit_message) still have dispatch
+# arms in call_tool() so they remain callable by name — they're just not
+# advertised. Hypothesis: per-session cache_creation is dominated by the
+# count of advertised tools, not by any single schema's size; collapsing
+# four tools into one should cut that overhead meaningfully. Reverting L4
+# is a one-file edit — restore the four per-tool Tool() entries below.
 
 
 @app.list_tools()
 async def list_tools() -> list[Tool]:
     return [
-        Tool(name="search", description=SEARCH_DESC, inputSchema=SEARCH_SCHEMA),
-        Tool(name="edit", description=EDIT_DESC, inputSchema=EDIT_SCHEMA),
-        Tool(name="read", description=READ_DESC, inputSchema=READ_SCHEMA),
-        Tool(name="sh", description=SH_DESC, inputSchema=SH_SCHEMA),
-        Tool(name="run_tests", description=RUN_TESTS_DESC, inputSchema=RUN_TESTS_SCHEMA),
-        Tool(name="git_status", description=GIT_STATUS_DESC, inputSchema=GIT_STATUS_SCHEMA),
-        Tool(name="git_diff", description=GIT_DIFF_DESC, inputSchema=GIT_DIFF_SCHEMA),
-        Tool(name="changed_files", description=CHANGED_FILES_DESC, inputSchema=CHANGED_FILES_SCHEMA),
-        Tool(name="lint_and_typecheck", description=LINT_DESC, inputSchema=LINT_SCHEMA),
-        Tool(name="extract_todos", description=TODOS_DESC, inputSchema=TODOS_SCHEMA),
-        Tool(name="commit_message", description=COMMIT_MSG_DESC, inputSchema=COMMIT_MSG_SCHEMA),
+        Tool(name="lathe", description=LATHE_DESC, inputSchema=LATHE_SCHEMA),
     ]
 
 
-@app.call_tool()
+# Claude Code renders MCP `structuredContent` in preference to the text block,
+# so emitting the raw result dict alongside our formatted text causes the JSON
+# envelope to shadow the human-readable rendering in the console. We keep
+# `call_tool` returning the dict so programmatic consumers (smoke scripts,
+# tests) can opt in via the env var; the MCP handler below strips it by
+# default so the user-facing surface only sees the formatted text.
+_EXPOSE_STRUCTURED_ENV: str = "BEAGLELATHE_EXPOSE_STRUCTURED"
+
+
+def _expose_structured_content() -> bool:
+    return os.environ.get(_EXPOSE_STRUCTURED_ENV) == "1"
+
+
+def _payload_bytes(payload: object) -> int | None:
+    """Serialized JSON length in bytes for savings measurement. None on failure."""
+    try:
+        return len(json.dumps(payload, default=str).encode("utf-8"))
+    except Exception:
+        return None
+
+
 async def call_tool(name: str, arguments: dict) -> tuple[list[TextContent], dict]:
     global _welcomed, _quota_exceeded, _upgrade_url
     cwd = Path.cwd()
     args = arguments or {}
-
-    # Record this call in the local savings DB (best-effort, never blocks).
-    record_call(name)
+    input_bytes = _payload_bytes(args)
 
     # First-call welcome when credentials are absent. Tool still executes.
     notice: str | None = None
@@ -131,6 +126,7 @@ async def call_tool(name: str, arguments: dict) -> tuple[list[TextContent], dict
             f"BeagleLathe: offline too long\nNo successful backend contact in over "
             f"{hours:.0f} hours.\nRun `beaglelathe login` or restore your network."
         )
+        record_call(name, output_bytes=_payload_bytes(payload), input_bytes=input_bytes)
         return [TextContent(type="text", text=text)], payload
 
     # Hard quota gate — only engaged after a sync confirms budget_remaining == 0.
@@ -148,10 +144,22 @@ async def call_tool(name: str, arguments: dict) -> tuple[list[TextContent], dict
         if _upgrade_url:
             text += f"\nUpgrade: {_upgrade_url}"
         text += "\nRun /lathe-upgrade to unlock unlimited calls."
+        record_call(name, output_bytes=_payload_bytes(payload), input_bytes=input_bytes)
         return [TextContent(type="text", text=text)], payload
 
     # Dispatch to the appropriate tool.
-    if name == "search":
+    if name == "lathe":
+        # L4 meta-tool. Apply the per-action error-improvement that the
+        # underlying tools would have received via their direct dispatch
+        # arms below, so error_type tagging stays consistent regardless of
+        # how the call entered.
+        result = run_lathe(args, cwd)
+        sub_action = args.get("action") if isinstance(args, dict) else None
+        if sub_action == "search":
+            result = _improve_search_errors(result)
+        elif sub_action == "read":
+            result = _improve_read_errors(result)
+    elif name == "search":
         result = run_search(args, cwd)
         result = _improve_search_errors(result)
     elif name == "edit":
@@ -159,7 +167,10 @@ async def call_tool(name: str, arguments: dict) -> tuple[list[TextContent], dict
             list(args.get("edits", [])),
             cwd,
             validate=bool(args.get("validate", True)),
+            include_diffs=bool(args.get("include_diffs", False)),
         )
+    elif name == "edit_glob":
+        result = run_edit_glob(args, cwd)
     elif name == "read":
         result = run_read(args, cwd)
         result = _improve_read_errors(result)
@@ -183,14 +194,52 @@ async def call_tool(name: str, arguments: dict) -> tuple[list[TextContent], dict
     else:
         result = {"error": f"unknown tool: {name}"}
 
+    # Per-session output dedup (search/read only). Identical content emitted
+    # in the last N turns is replaced with a small stub; pass force=true to
+    # bypass. The L4 meta-tool routes search/read through `name == "lathe"`
+    # — peek at the action and the nested `force` so dedup behaves the same
+    # whether the call entered via the per-tool arm or the meta-tool arm.
+    dedup_name: str | None = None
+    dedup_force = False
+    if name in _DEDUP_TOOLS:
+        dedup_name = name
+        dedup_force = bool(args.get("force", False))
+    elif name == "lathe":
+        sub_action = args.get("action") if isinstance(args, dict) else None
+        if sub_action in _DEDUP_TOOLS:
+            dedup_name = sub_action
+            sub_args = args.get("args") or {}
+            dedup_force = bool(sub_args.get("force", False)) if isinstance(sub_args, dict) else False
+
+    if dedup_name is not None and "error" not in result:
+        _dedup_cache.begin_call()
+        if dedup_force:
+            _dedup_cache.force_record(result, dedup_name)
+        else:
+            stub = _dedup_cache.check_or_record(result, dedup_name)
+            if stub is not None:
+                result = stub
+
     if notice:
         result = {"_notice": notice, **result}
+
+    # Record this call in the local savings DB (best-effort, never blocks).
+    # Done post-dispatch so output_bytes reflects the actual returned payload.
+    record_call(name, output_bytes=_payload_bytes(result), input_bytes=input_bytes)
 
     # Background sync to the auth backend (best-effort, never blocks the response).
     threading.Thread(target=_sync_usage_bg, daemon=True).start()
 
     text = format_result(name, args, result)
     return [TextContent(type="text", text=text)], result
+
+
+@app.call_tool()
+async def _mcp_call_tool(name: str, arguments: dict):
+    content, result = await call_tool(name, arguments)
+    if _expose_structured_content():
+        return content, result
+    return content
 
 
 # ---------------------------------------------------------------------------
@@ -249,7 +298,7 @@ def _sync_usage_bg() -> None:
         creds = load_credentials()
         if creds is None:
             return
-        from .usage_client import UsageClientError, post_sync
+        from .usage_client import post_sync
         data = post_sync(creds, tool_calls=1)
 
         # If the backend issued a refreshed JWT, persist it so subsequent syncs use it.

@@ -1,0 +1,16 @@
+Find every file under src/ that actually CALLS the `parse_config` function defined in `src/lib/utils.py`. A file counts as a caller only if BOTH of these are true:
+
+  (a) It imports `parse_config` from `src.lib.utils` (any equivalent import path is fine: `from src.lib.utils import parse_config`, `from .lib.utils import parse_config`, etc.), AND
+  (b) It invokes `parse_config(...)` somewhere in actual code (not in a comment, not as a string literal, not just re-exported in `__all__`).
+
+A file does NOT count as a caller if:
+  - It only imports `parse_config` without calling it.
+  - It mentions `parse_config` in a comment or docstring.
+  - It has `parse_config` in a string literal.
+  - It calls a `parse_config` that's imported from a different module (e.g. `external.lib`).
+
+Do not include `src/lib/utils.py` itself (the definition site is not a caller).
+
+Write the result to a new file at the repo root called `callers.txt`. One file path per line. Paths must be relative to the repo root, use forward slashes, and the list must be sorted in lexicographic order. No blank lines, no header, no extra text.
+
+When done, reply with a single line: DONE.

@@ -9,6 +9,7 @@ from __future__ import annotations
 from .imports import Import, imports
 from .parser import parse
 from .registry import LANGUAGES, language_for_path
+from .structure import structure
 from .symbols import Symbol, symbols
 from .truncate import truncate
 
@@ -19,6 +20,7 @@ __all__ = [
     "imports",
     "language_for_path",
     "parse",
+    "structure",
     "symbols",
     "truncate",
 ]

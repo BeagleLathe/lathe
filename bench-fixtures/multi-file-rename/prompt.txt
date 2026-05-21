@@ -1,0 +1,5 @@
+Rename every occurrence of the symbol `handleAuth` to `handleLogin` in every .ts file under src/. This includes the function declaration, all imports, and all call sites.
+
+IMPORTANT: apply the renames through a file-editing tool (the built-in `Edit`, a batch edit tool, or a regex+glob substitution tool are all fine), NOT through shell commands like `sed`, `perl`, `awk`, or `tr`. The change must show up as a per-file diff or per-file substitution count so the change history is auditable. Do not pipe the files through a shell substitution.
+
+Do not ask for confirmation. When done, reply with a single line: DONE.

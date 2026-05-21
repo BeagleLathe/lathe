@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 — 2026-05-20
+
+### Changed
+
+- **MCP server key renamed `lathe` → `tool` to fix the "Plugin Lathe Lathe [lathe]" display.** With slug, server key, and tool name all `lathe`, Claude Code's tool-call UI rendered the dispatcher as "Plugin Lathe Lathe [lathe]" — a visual triple that read worse after L4 collapsed the four advertised tools into a single dispatcher. New prefixes: `mcp__plugin_lathe_tool__lathe` (plugin install, renders as "Plugin Lathe Tool [lathe]") and `mcp__tool__lathe` (`.mcp.json` install, renders as "Tool [lathe]"). The plugin slug stays `lathe` (marketplace identifier); the tool name stays `lathe` so the brand remains in the bracket. The SessionStart hook's probe still detects the legacy `lathe`/`beaglelathe` server keys in user `.mcp.json`s so back-compat installs keep working. Drift guard test expanded with a back-compat case. Bench-log readers (`benchmark.count_tool_uses`, `inspect_bench_log.BL_PREFIXES`) keep the legacy prefixes alongside the new ones so historical ndjson logs stay inspectable.
+
 ## 0.2.6 — 2026-05-17
 
 ### Fixed

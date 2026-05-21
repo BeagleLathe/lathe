@@ -1,0 +1,1 @@
+Add a new method `multiply_then_add(self, x, y, z)` to the Calculator class in src/calc.py. It should return `x * y + z`, but it MUST delegate to the existing `add` method for the final addition (i.e. call `self.add(x * y, z)` — do not inline the `+`). Do not modify any other file. When done, reply with a single line: DONE.

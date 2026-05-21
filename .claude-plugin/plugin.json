@@ -1,12 +1,13 @@
 {
   "name": "lathe",
-  "description": "Token-efficient MCP tools for Claude Code: fused search, batched fuzzy edit, AST-aware read, read-only shell, structured tests, git, lint/typecheck, todo extraction, and commit-message drafting. Eleven tools that collapse 3-5 vanilla tool calls down to 1.",
-  "version": "0.2.6",
+  "description": "Token-efficient MCP tools for Claude Code: fused search, batched fuzzy edit, atomic glob-regex edit, and AST-aware read. Four tools that collapse 3-5 vanilla tool calls down to 1, surfaced eagerly so the model can use them from turn 1 without a ToolSearch promotion round-trip.",
+  "version": "0.3.1",
   "keywords": ["search", "edit", "read", "mcp", "token-efficient", "ripgrep", "ast", "tree-sitter"],
   "mcpServers": {
-    "lathe": {
+    "tool": {
       "command": "beaglelathe",
-      "args": ["serve"]
+      "args": ["serve"],
+      "alwaysLoad": true
     }
   }
 }

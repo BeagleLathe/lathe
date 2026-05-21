@@ -1,0 +1,5 @@
+There's a single Python module at `src/library.py`. It defines 10 classes, each with a `handle(event)` method that returns a status string. Exactly ONE class's `handle()` returns the string literal `"authoritative"`. Find which class.
+
+Write the class name — just the bare identifier on a single line, no quotes, no `Class.` prefix, nothing else — to a new file at the repo root called `answer.txt`. Do not modify src/library.py.
+
+When done, reply with a single line: DONE.

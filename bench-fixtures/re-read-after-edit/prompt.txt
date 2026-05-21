@@ -1,0 +1,7 @@
+Do the following in order:
+
+1. Change the value of `DEBUG` in src/config.py from False to True. Leave MAX_RETRIES unchanged.
+2. After applying the edit, confirm the current value of DEBUG by inspecting the post-edit file content. You may do this by re-reading the file OR by reading it from the edit tool's response (if the tool returns a post-edit snippet).
+3. Write a single line — exactly `DEBUG=<value>` (e.g. `DEBUG=True`) — to a new file at the repo root called `debug-status.txt`. The value MUST come from the post-edit content observed in step 2, not your memory of what you asked the edit to do.
+
+When done, reply with a single line: DONE.
